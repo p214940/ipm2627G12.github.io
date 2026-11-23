@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Event Manager</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+</head>
+
+<body>
+
+    <div class="layout">
+
+        <div class="sidebar">
+
+            <div id="spaceList"></div>
+            <button id="newSpace">New Space +</button>
+
+        </div>
+
+        <div id="leftColorbar" class="left-colorbar"></div>
+
+        <div id="mainContent" class="main-content">
+            <div id="selectedSpaceHeader"></div>
+
+            <select id="noteTaskFilter" style="display:none; margin-bottom:10px;"></select>
+
+            <div id="noteList"></div>
+            <button id="newNote" style="display:none">New Note +</button>
+
+        </div>
+
+        <div id="rightColorbar" class="right-colorbar"></div>
+
+        <div class="task-sidebar">
+            <button id="sortTasks" style="display:none">Sort: Priority</button>
+            <div id="taskList"></div>
+            <button id="newTask" style="display:none">New Task +</button>
+
+        </div>
+
+    </div>
+
+    <div id="eventModal" class="modal">
+        <div class="modal-content">
+
+            <span class="close" id="closeModal">&times;</span>
+
+            <h2>New Space</h2>
+
+            <form id="eventForm">
+
+                <label>Space Name</label>
+                <input type="text" id="spaceName" minlength="1" maxlength="20" required>
+
+                <label>Space Description</label>
+                <input type="text" maxlength="20" id="spaceDescription">
+
+                <label>Color</label>
+                <input type="color" id="spaceColor" value="#da223d">
+
+                <button type="submit">Save Space</button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeTaskModal">&times;</span>
+
+            <h2>New Task</h2>
+
+            <form id="taskForm">
+
+                <label>Title:</label>
+                <input type="text" id="taskName" minlength="1" maxlength="20" required>
+
+                <label>Description:</label>
+                <input type="text" id="taskDescription" maxlength="20">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="taskStart">Starts:</label>
+                        <input type="datetime-local" id="taskStart">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskEnds">Ends:</label>
+                        <input type="datetime-local" id="taskEnds" required>
+                    </div>
+                </div>
+
+                <!-- Priority horizontally -->
+                <div class="form-group" required>
+                    <label>Priority:</label>
+
+                    <div class="radio-row">
+                        <label>
+                            <input type="radio" name="priority" value="LOW" checked="checked"> Low
+                        </label>
+
+                        <label>
+                            <input type="radio" name="priority" value="MEDIUM"> Medium
+                        </label>
+
+                        <label>
+                            <input type="radio" name="priority" value="HIGH"> High
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Notifications horizontally -->
+                <div class="form-group">
+                    <label>Notification?</label>
+
+                    <div class="radio-row">
+                        <label>
+                            <input type="radio" name="notif" value="YES"> Yes
+                        </label>
+
+                        <label>
+                            <input type="radio" name="notif" value="NO" checked="checked"> No
+                        </label>
+                    </div>
+                </div>
+
+                <button type="button" id="openSelectNotesBtn">Attach Notes</button>
+
+                <button type="submit" id="saveTaskBtn">Finish and Save</button>
+
+
+                <button type="button" id="deleteTaskBtn" style="background:red">Delete Task</button>
+
+            </form>
+        </div>
+    </div>
+
+    <div id="selectNotesModal" class="modal" style="z-index: 1001;">
+        <div class="modal-content">
+            <span class="close" id="closeSelectNotesModal">&times;</span>
+
+            <h2>Select Notes</h2>
+
+            <div id="selectNotesList" style="max-height: 300px; overflow-y: auto; margin-bottom: 12px;"></div>
+
+            <button type="button" id="confirmSelectNotesBtn">Done</button>
+        </div>
+    </div>
+
+    <div id="noteModal" class="modal">
+        <div class="modal-content">
+
+            <span class="close" id="closeNoteModal">&times;</span>
+
+            <h2>New Note</h2>
+
+            <form id="noteForm">
+
+                <label>Title:</label>
+                <input type="text" id="noteName" minlength="1" maxlength="20" required>
+
+                <label>Note:</label>
+                <textarea id="noteDescription" rows="12"></textarea>
+
+                <label>Attachments:</label>
+                <input type="file" id="noteAttachments" multiple accept="image/*,.pdf,.doc,.docx,.txt,.xlsx,.pptx">
+
+                <button type="button" id="openSelectTasksBtn">Attach to Tasks</button>
+
+                <button type="submit">Save Note</button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+    <div id="selectTasksModal" class="modal" style="z-index: 1001;">
+        <div class="modal-content">
+            <span class="close" id="closeSelectTasksModal">&times;</span>
+
+            <h2>Select Tasks</h2>
+
+            <div id="selectTasksList" style="max-height: 300px; overflow-y: auto; margin-bottom: 12px;"></div>
+
+            <button type="button" id="confirmSelectTasksBtn">Done</button>
+        </div>
+    </div>
+
+    <script>
+
+        const STORAGE_KEY = "studentEventManager";
+
+        let appData = {
+            spaces: []
+        };
+
+        let selectedSpaceId = null;
+        let editingId = null;
+        let taskSortMode = "priority";
+        let popupAlreadyShown = false;
+
+        let selectedTaskFilterId = "";
+
+        document.getElementById("noteTaskFilter").addEventListener("change", event => {
+            selectedTaskFilterId = event.target.value;
+            renderNotes();
+        });
+
+        // DOM elements
+        const modal = document.getElementById("eventModal");
+        const taskModal = document.getElementById("taskModal");
+        const noteModal = document.getElementById("noteModal");
+        const eventForm = document.getElementById("eventForm");
+        const taskForm = document.getElementById("taskForm");
+        const noteForm = document.getElementById("noteForm");
+
+        const spaceList = document.getElementById("spaceList");
+        const taskList = document.getElementById("taskList");
+        const noteList = document.getElementById("noteList");
+
+        // Generate unique IDs
+        function generateId() {
+            return crypto.randomUUID();
+        }
+
+        // Save data automatically as JSON
+        function saveData() {
+            localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(appData, null, 2)
+            );
+        }
+
+        // Load saved JSON
+        function loadData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+
+                    if (parsed && Array.isArray(parsed.spaces)) {
+                        appData = parsed;
+                        if (parsed && Array.isArray(parsed.spaces)) {
+                            appData = parsed;
+                            appData.spaces.forEach(space => {
+                                const validNoteIds = new Set(space.notes.map(n => n.id));
+                                space.tasks.forEach(task => {
+                                    if (Array.isArray(task.noteIds)) {
+                                        task.noteIds = task.noteIds.filter(id => validNoteIds.has(id));
+                                    }
+                                });
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading data:", error);
+            }
+
+            renderAll();
+        }
+
+        document.getElementById("sortTasks").addEventListener("click", () => {
+
+            if (taskSortMode === "priority") {
+                taskSortMode = "date";
+            } else {
+                taskSortMode = "priority";
+            }
+
+            renderTasks();
+        });
+
+        // Find selected space
+        function getSelectedSpace() {
+            return appData.spaces.find(
+                space => space.id === selectedSpaceId
+            );
+        }
+
+        // Create an element safely
+        function createButton(text, className, callback) {
+            const button = document.createElement("button");
+            button.textContent = text;
+            button.className = className;
+            button.type = "button";
+
+            button.addEventListener("click", callback);
+            return button;
+        }
+
+        function createIconButton(icon, className, callback) {
+            const button = document.createElement("button");
+            button.className = className;
+            button.type = "button";
+
+            const img = document.createElement("img");
+            img.src = icon;
+            img.alt = "";
+            img.className = "button-icon";
+
+            button.appendChild(img);
+            button.addEventListener("click", callback);
+
+            return button;
+        }
+
+        // Render everything
+        function renderAll() {
+            renderSpaces();
+            renderNotes();
+            renderTasks();
+        }
+
+        // Render Spaces
+        function renderSpaces() {
+            spaceList.innerHTML = "";
+
+            appData.spaces.forEach((space, index) => {
+                const button = document.createElement("button");
+                button.className = "space-item";
+                button.style.backgroundColor = space.color;
+                button.style.setProperty("--space-color", space.color);
+
+                if (space.id === selectedSpaceId) {
+                    button.classList.add("selected");
+                    document.getElementById("newTask").style.display = "block";
+                    document.getElementById("newNote").style.display = "block";
+                    document.getElementById("sortTasks").style.display = "block";
+
+                    selectedSpaceHeader.style.display = "block";
+                    selectedSpaceHeader.style.backgroundColor = space.color;
+                    selectedSpaceHeader.textContent = space.name;
+                }
+
+                const title = document.createElement("h3");
+                title.textContent = space.name;
+
+                const description = document.createElement("p");
+                description.textContent = space.description || "";
+
+                button.append(title, description);
+
+                 // Popup only on the first space
+                if (index === 0 && !popupAlreadyShown) {
+                    const popup = document.createElement("div");
+                    popup.className = "popup";
+
+                    const popupText = document.createElement("span");
+                    popupText.className = "popuptext";
+                    popupText.textContent =
+                        "Double click the space to edit it! Click it once if you want to select this space.";
+
+                    popup.appendChild(popupText);
+                    button.appendChild(popup);
+
+                    // Mark as shown
+                    popupAlreadyShown = true;
+
+                    // Show popup
+                    popupText.classList.add("show");
+
+                    // Hide after 10 seconds
+                    const popupTimeout = setTimeout(() => {
+                        popupText.classList.remove("show");
+                    }, 10000);
+
+                    // Hide when clicked
+                    popup.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                        clearTimeout(popupTimeout);
+                        popupText.classList.remove("show");
+                    });
+                }
+
+                let clickTimer = null;
+
+                button.addEventListener("click", () => {
+                    if (clickTimer) {
+                        clearTimeout(clickTimer);
+                        clickTimer = null;
+
+                        editSpace(space.id);
+                        return;
+                    }
+
+                    clickTimer = setTimeout(() => {
+                        clickTimer = null;
+
+                        selectedSpaceId = space.id;
+                        selectedTaskFilterId = "";
+                        renderAll();
+                    }, 150);
+                });
+
+                button.addEventListener("dblclick", (event) => {
+                    console.log("Double click detected", event);
+                    editSpace(space.id);
+                });
+
+                spaceList.appendChild(button);
+            });
+
+            // esconde o cabecalho
+            if (!selectedSpaceId) {
+                selectedSpaceHeader.style.display = "none";
+            }
+        }
+
+        // Render Notes
+        function renderNotes() {
+            noteList.innerHTML = "";
+
+            const space = getSelectedSpace();
+
+            const sidebarleft = document.getElementById("leftColorbar");
+            const sidebarright = document.getElementById("rightColorbar");
+
+            sidebarleft.style.backgroundColor = space.color;
+            sidebarright.style.backgroundColor = space.color;
+            if (!space) {
+                sidebarleft.style.backgroundColor = "#000000";
+                sidebarright.style.backgroundColor = "#000000";
+                return;
+            }
+
+            const filterSelect = document.getElementById("noteTaskFilter");
+            filterSelect.style.display = "block";
+            filterSelect.innerHTML = `<option value="">All Notes (${space.notes.length})</option>`;
+
+            space.tasks.forEach(task => {
+                const count = (task.noteIds || []).length;
+                const option = document.createElement("option");
+                option.value = task.id;
+                option.textContent = `Task: ${task.name} (${count})`;
+                filterSelect.appendChild(option);
+            });
+
+            if (selectedTaskFilterId && !space.tasks.some(t => t.id === selectedTaskFilterId)) {
+                selectedTaskFilterId = "";
+            }
+            filterSelect.value = selectedTaskFilterId;
+
+            let notesToRender = space.notes;
+            if (selectedTaskFilterId) {
+                const activeTask = space.tasks.find(t => t.id === selectedTaskFilterId);
+                const linkedIds = activeTask?.noteIds || [];
+                notesToRender = space.notes.filter(note => linkedIds.includes(note.id));
+            }
+
+            notesToRender.forEach(note => {
+                const item = document.createElement("div");
+                item.className = "note-entry";
+
+                const edit = createIconButton(
+                    "editLapis.png",
+                    "note-item",
+                    () => editNote(note.id)
+                );
+
+                const title = document.createElement("h3");
+                title.textContent = note.name;
+
+                const description = document.createElement("div");
+                description.className = "note-description";
+
+                description.innerHTML = DOMPurify.sanitize(
+                    marked.parse(note.description || "")
+                );
+
+                // Display attachments
+                const attachmentContainer = document.createElement("div");
+                attachmentContainer.className = "note-attachments";
+
+                const imageContainer = document.createElement("div");
+                imageContainer.className = "note-images";
+
+                const fileContainer = document.createElement("div");
+                fileContainer.className = "note-files";
+
+                (note.attachments || []).forEach(file => {
+
+                    if (file.type.startsWith("image/")) {
+
+                        const img = document.createElement("img");
+                        img.src = file.data;
+                        img.alt = file.name;
+                        img.className = "note-image";
+
+                        imageContainer.appendChild(img);
+
+                    } else {
+
+                        const link = document.createElement("a");
+                        link.href = file.data;
+                        link.download = file.name;
+                        link.textContent = file.name;
+                        link.className = "note-file";
+
+                        fileContainer.appendChild(link);
+                    }
+
+                });
+
+                attachmentContainer.append(imageContainer, fileContainer);
+
+                const remove = createIconButton(
+                    "baldeLixo.png",
+                    "delete-item",
+                    () => deleteNote(note.id)
+                );
+
+                item.append(title, description, attachmentContainer, edit, remove);
+                noteList.appendChild(item);
+            });
+        }
+
+        // Render Tasks
+
+        function renderTasks() {
+            taskList.innerHTML = "";
+
+            const sortButton = document.getElementById("sortTasks");
+
+            sortButton.textContent =
+                taskSortMode === "priority"
+                    ? "Sort: Priority"
+                    : "Sort: Date";
+
+            // Collect all tasks from all spaces
+            const allTasks = [];
+
+            appData.spaces.forEach(space => {
+                space.tasks.forEach(task => {
+                    allTasks.push({
+                        task: task,
+                        space: space
+                    });
+                });
+            });
+
+            // Sort tasks
+            allTasks.sort((a, b) => {
+
+                if (taskSortMode === "priority") {
+
+                    const priorityOrder = {
+                        HIGH: 1,
+                        MEDIUM: 2,
+                        LOW: 3
+                    };
+
+                    return (priorityOrder[a.task.priority] || 4) -
+                        (priorityOrder[b.task.priority] || 4);
+                }
+
+                if (taskSortMode === "date") {
+
+                    const dateA = new Date(a.task.end).getTime();
+                    const dateB = new Date(b.task.end).getTime();
+
+                    return (Number.isNaN(dateA) ? Infinity : dateA) -
+                        (Number.isNaN(dateB) ? Infinity : dateB);
+                }
+
+            });
+
+            // Render sorted tasks
+            allTasks.forEach(({ task, space }) => {
+
+                const item = document.createElement("div");
+                item.className = "task-entry";
+
+                const edit = createButton(
+                    task.name,
+                    "task-item",
+                    () => {
+                        selectedSpaceId = space.id;
+                        editTask(task.id);
+                    }
+                );
+
+                edit.style.backgroundColor = space.color;
+
+                const prioritySymbol = document.createElement("span");
+                if (task.priority === "HIGH") {
+                    prioritySymbol.className = "high-priority-symbol";
+
+                }
+
+                item.append(prioritySymbol, edit);
+
+                if (task.noteIds && task.noteIds.length > 0) {
+                    const viewNotesBtn = createButton(
+                        `Notes: ${task.noteIds.length}`,
+                        "task-notes-badge",
+                        () => {
+                            selectedSpaceId = space.id;
+                            selectedTaskFilterId = task.id;
+                            renderAll();
+                        }
+                    );
+                    item.append(viewNotesBtn);
+                }
+
+                taskList.appendChild(item);
+            });
+        }
+
+
+        // Modal helpers
+        function openModal(element) {
+            element.style.display = "flex";
+        }
+
+        function closeModal(element) {
+            element.style.display = "none";
+        }
+
+        // Close buttons
+        document.getElementById("closeModal").onclick =
+            () => closeModal(modal);
+
+        document.getElementById("closeTaskModal").onclick =
+            () => closeModal(taskModal);
+
+        document.getElementById("closeNoteModal").onclick =
+            () => closeModal(noteModal);
+
+        const selectNotesModal = document.getElementById("selectNotesModal");
+        let selectedTaskNoteIds = [];
+
+        document.getElementById("closeSelectNotesModal").onclick =
+            () => closeModal(selectNotesModal);
+
+        document.getElementById("openSelectNotesBtn").onclick = () => {
+            const list = document.getElementById("selectNotesList");
+            list.innerHTML = "";
+
+            const space = getSelectedSpace();
+            if (!space || !space.notes.length) {
+                list.textContent = "No notes in this space.";
+            } else {
+                space.notes.forEach(note => {
+                    const label = document.createElement("label");
+                    label.style.display = "block";
+                    label.style.marginBottom = "8px";
+
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.value = note.id;
+                    checkbox.checked = selectedTaskNoteIds.includes(note.id);
+
+                    label.append(checkbox, " " + note.name);
+                    list.appendChild(label);
+                });
+            }
+
+            openModal(selectNotesModal);
+        };
+
+        const selectTasksModal = document.getElementById("selectTasksModal");
+        let selectedNoteTaskIds = [];
+
+        document.getElementById("closeSelectTasksModal").onclick =
+            () => closeModal(selectTasksModal);
+
+        document.getElementById("openSelectTasksBtn").onclick = () => {
+            const list = document.getElementById("selectTasksList");
+            list.innerHTML = "";
+
+            const space = getSelectedSpace();
+            if (!space || !space.tasks.length) {
+                list.textContent = "No tasks in this space.";
+            } else {
+                space.tasks.forEach(task => {
+                    const label = document.createElement("label");
+                    label.style.display = "block";
+                    label.style.marginBottom = "8px";
+
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.value = task.id;
+                    checkbox.checked = selectedNoteTaskIds.includes(task.id);
+
+                    label.append(checkbox, " " + task.name);
+                    list.appendChild(label);
+                });
+            }
+
+            openModal(selectTasksModal);
+        };
+
+        document.getElementById("confirmSelectTasksBtn").onclick = () => {
+            selectedNoteTaskIds = Array.from(
+                document.querySelectorAll("#selectTasksList input[type='checkbox']:checked")
+            ).map(cb => cb.value);
+
+            document.getElementById("openSelectTasksBtn").textContent =
+                selectedNoteTaskIds.length
+                    ? `Attach to Tasks (${selectedNoteTaskIds.length})`
+                    : "Attach to Tasks";
+
+            closeModal(selectTasksModal);
+        };
+
+        document.getElementById("confirmSelectNotesBtn").onclick = () => {
+            selectedTaskNoteIds = Array.from(
+                document.querySelectorAll("#selectNotesList input[type='checkbox']:checked")
+            ).map(cb => cb.value);
+
+            document.getElementById("openSelectNotesBtn").textContent =
+                selectedTaskNoteIds.length
+                    ? `Attach Notes (${selectedTaskNoteIds.length})`
+                    : "Attach Notes";
+
+            closeModal(selectNotesModal);
+        };
+
+
+
+        window.addEventListener("click", event => {
+            if (event.target.classList.contains("modal")) {
+                closeModal(event.target);
+            }
+        });
+
+        // New Space
+        document.getElementById("newSpace").onclick = () => {
+            editingId = null;
+            eventForm.reset();
+            document.querySelector("#eventModal h2").textContent = "New Space";
+            openModal(modal);
+        };
+
+        // Save Space
+        eventForm.addEventListener("submit", event => {
+            event.preventDefault();
+
+            const name = document.getElementById("spaceName").value;
+            const description = document.getElementById("spaceDescription").value;
+            const color = document.getElementById("spaceColor").value;
+
+            if (editingId) {
+                const space = appData.spaces.find(s => s.id === editingId);
+
+                if (space) {
+                    Object.assign(space, { name, description, color });
+                }
+            } else {
+                const space = {
+                    id: generateId(),
+                    name,
+                    description,
+                    color,
+                    notes: [],
+                    tasks: []
+                };
+
+                appData.spaces.push(space);
+                selectedSpaceId = space.id;
+            }
+
+            saveData();
+            renderAll();
+            closeModal(modal);
+            editingId = null;
+        });
+
+        // Edit Space
+        function editSpace(id) {
+            const space = appData.spaces.find(s => s.id === id);
+            if (!space) return;
+
+            editingId = id;
+
+            document.getElementById("spaceName").value = space.name;
+            document.getElementById("spaceDescription").value = space.description;
+            document.getElementById("spaceColor").value = space.color;
+
+            document.querySelector("#eventModal h2").textContent = "Edit Space";
+
+            openModal(modal);
+        }
+
+        // New Task
+        document.getElementById("newTask").onclick = () => {
+            if (!getSelectedSpace()) {
+                alert("Please select a Space first.");
+                return;
+            }
+
+            editingId = null;
+            taskForm.reset();
+            selectedTaskNoteIds = [];
+            document.getElementById("openSelectNotesBtn").textContent = "Attach Notes";
+            document.querySelector("#taskModal h2").textContent = "New Task";
+            document.getElementById("deleteTaskBtn").style.display = "none";
+            openModal(taskModal);
+        };
+
+        // Save Task
+        taskForm.addEventListener("submit", event => {
+            event.preventDefault();
+
+            const space = getSelectedSpace();
+            if (!space) return;
+
+            const task = {
+                name: document.getElementById("taskName").value,
+                description: document.getElementById("taskDescription").value,
+                start: document.getElementById("taskStart").value,
+                end: document.getElementById("taskEnds").value,
+                priority: taskForm.querySelector('[name="priority"]:checked')?.value || "LOW",
+                notification: taskForm.querySelector('[name="notif"]:checked')?.value || "NO",
+                noteIds: [...selectedTaskNoteIds]
+            };
+
+            if (editingId) {
+                const existing = space.tasks.find(t => t.id === editingId);
+
+                if (existing) Object.assign(existing, task);
+            } else {
+                space.tasks.push({
+                    id: generateId(),
+                    ...task
+                });
+            }
+
+            saveData();
+            renderAll();
+            closeModal(taskModal);
+            editingId = null;
+        });
+
+        // Edit Task
+        function editTask(id) {
+            const space = getSelectedSpace();
+            const task = space?.tasks.find(t => t.id === id);
+            if (!task) return;
+
+            editingId = id;
+
+            document.getElementById("taskName").value = task.name;
+            document.getElementById("taskDescription").value = task.description;
+            document.getElementById("taskStart").value = task.start;
+            document.getElementById("taskEnds").value = task.end;
+
+            taskForm.querySelectorAll('[name="priority"]').forEach(input => {
+                input.checked = input.value === task.priority;
+            });
+
+            taskForm.querySelectorAll('[name="notif"]').forEach(input => {
+                input.checked = input.value === task.notification;
+            });
+
+            selectedTaskNoteIds = [...(task.noteIds || [])];
+            document.getElementById("openSelectNotesBtn").textContent =
+                selectedTaskNoteIds.length
+                    ? `Attach Notes (${selectedTaskNoteIds.length})`
+                    : "Attach Notes";
+
+            document.querySelector("#taskModal h2").textContent = "Edit Task";
+            document.getElementById("deleteTaskBtn").style.display = "inline-block";
+            openModal(taskModal);
+        }
+
+        document.getElementById("deleteTaskBtn").onclick = () => {
+            if (!editingId) return;
+
+            if (!confirm("Are you sure you want to delete this task?")) return;
+
+            const space = getSelectedSpace();
+            if (!space) return;
+
+            space.tasks = space.tasks.filter(
+                task => task.id !== editingId
+            );
+
+            saveData();
+            renderAll();
+
+            closeModal(taskModal);
+            editingId = null;
+        };
+
+        // Delete Task
+        function deleteTask(id) {
+            const space = getSelectedSpace();
+            if (!space || !confirm("Delete this task?")) return;
+
+            space.tasks = space.tasks.filter(t => t.id !== id);
+
+            saveData();
+            renderAll();
+        }
+
+        // New Note
+        document.getElementById("newNote").onclick = () => {
+            if (!getSelectedSpace()) {
+                alert("Please select a Space first.");
+                return;
+            }
+
+            editingId = null;
+            noteForm.reset();
+            selectedNoteTaskIds = [];
+
+            const attachBtn = document.getElementById("openSelectTasksBtn");
+            attachBtn.style.display = "inline-block"; // <-- Shows button again
+            attachBtn.textContent = "Attach to Tasks";
+
+            document.querySelector("#noteModal h2").textContent = "New Note";
+            openModal(noteModal);
+        };
+
+        // Save Note
+        noteForm.addEventListener("submit", async event => {
+            event.preventDefault();
+
+            const space = getSelectedSpace();
+            if (!space) return;
+
+            const name = document.getElementById("noteName").value;
+            const description = document.getElementById("noteDescription").value;
+
+            const files = Array.from(
+                document.getElementById("noteAttachments").files
+            );
+
+            // Prevent excessively large uploads
+            if (files.some(file => file.size > 2 * 1024 * 1024)) {
+                alert("Each file must be smaller than 2 MB.");
+                return;
+            }
+
+            const newAttachments = await Promise.all(
+                files.map(fileToDataURL)
+            );
+
+            if (editingId) {
+                const existing = space.notes.find(n => n.id === editingId);
+
+                if (existing) {
+                    existing.name = name;
+                    existing.description = description;
+                    existing.attachments = [
+                        ...(existing.attachments || []),
+                        ...newAttachments
+                    ];
+                }
+            } else {
+                const noteId = generateId();
+                space.notes.push({
+                    id: noteId,
+                    name,
+                    description,
+                    attachments: newAttachments
+                });
+
+                // Only attach to tasks when creating a new note
+                space.tasks.forEach(task => {
+                    if (selectedNoteTaskIds.includes(task.id)) {
+                        if (!Array.isArray(task.noteIds)) task.noteIds = [];
+                        task.noteIds.push(noteId);
+                    }
+                });
+            }
+
+            saveData();
+            renderAll();
+            closeModal(noteModal);
+            editingId = null;
+            noteForm.reset();
+        });
+
+        // Edit Note
+        function editNote(id) {
+            const space = getSelectedSpace();
+            const note = space?.notes.find(n => n.id === id);
+            if (!note) return;
+
+            editingId = id;
+
+            document.getElementById("noteName").value = note.name;
+            document.getElementById("noteDescription").value = note.description;
+            document.getElementById("openSelectTasksBtn").style.display = "none";
+
+            document.querySelector("#noteModal h2").textContent = "Edit Note";
+            openModal(noteModal);
+        }
+
+        // Delete Note
+        function deleteNote(id) {
+            const space = getSelectedSpace();
+            if (!space || !confirm("Delete this note?")) return;
+
+            space.notes = space.notes.filter(n => n.id !== id);
+
+            // Remove deleted note's ID from all tasks in this space
+            space.tasks.forEach(task => {
+                if (Array.isArray(task.noteIds)) {
+                    task.noteIds = task.noteIds.filter(noteId => noteId !== id);
+                }
+            });
+
+            saveData();
+            renderAll();
+        }
+
+        function fileToDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = () => {
+                    resolve({
+                        name: file.name,
+                        type: file.type,
+                        data: reader.result
+                    });
+                };
+
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Start application
+        loadData();
+
+    </script>
+
+</body>
+
+</html>
